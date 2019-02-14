@@ -50,8 +50,17 @@ draw p = let (_,ls) = prog p start in toHTML ls
 --   ((Down,(4,5)),Just ((2,3),(4,5)))
 --
 
-modeToState :: Mode -> State -> State
-modeToState (mode) (_,(xPos,yPos)) = (mode,(xPos,yPos))
+cmdToState :: (State, Maybe Line) -> State
+cmdToState (state,line) = state
+
+cmdToMaybeLine :: (State, Maybe Line) -> Maybe Line
+cmdToMaybeLine (state, line) = line
+
+cmdToLine :: (State, Maybe Line) -> Line
+cmdToLine (state, (Just line)) = line
+
+lineToPoint :: Line -> Point
+lineToPoint (first,second) = second
 
 cmd :: Cmd -> State -> (State, Maybe Line)
 cmd (Pen mode) (_, (x, y)) = ((mode, (x, y)), Nothing)
@@ -68,9 +77,18 @@ cmd (Move x y) (Down, (x2, y2)) = ((Down, (x, y)), (Just ((x2, y2), (x, y))))
 --   >>> prog (steps 2 0 0) start
 --   ((Down,(2,2)),[((0,0),(0,1)),((0,1),(1,1)),((1,1),(1,2)),((1,2),(2,2))])
 prog :: Prog -> State -> (State, [Line])
-prog = undefined
+prog progN state =
+    ((Down, (getLast list)), list)
+    where {list = lineM progN state; }
 
+lineM :: Prog -> State -> [Line]
+lineM [] = \state -> []
+lineM (command:restOfList) = \state -> 
+    if (cmdToMaybeLine (cmd command state)) == Nothing then lineM restOfList (cmdToState (cmd command state))
+    else [(cmdToLine (cmd command state))] ++ (lineM restOfList (cmdToState (cmd command state)))
 
+getLast :: [Line] -> Point
+getLast list = lineToPoint (last list)
 --
 -- * Extra credit
 --
@@ -78,4 +96,16 @@ prog = undefined
 -- | This should be a MiniMiniLogo program that draws an amazing picture.
 --   Add as many helper functions as you want.
 amazing :: Prog
-amazing = undefined
+amazing = house 2 2 ++ house 15 2 ++ house 28 2 ++ house 10 15 ++ house 23 15
+
+house :: Int -> Int -> Prog
+house x y = wall x y ++ wall (x+2) y ++ wall (x+8) y ++ wall (x+10) y ++ steps 6 x (y+6) ++ stepsDown 6 (x+6) (y+12) ++ box (x+4) (y+4) ++ box (x+6) (y+4)
+
+wall :: Int -> Int -> Prog 
+wall x y = box x y ++ box x (y+2) ++ box x (y+4)
+
+stepsDown :: Int -> Int -> Int -> Prog
+stepsDown n x y = [Pen Up, Move x y, Pen Down] ++ step n
+  where 
+    step 0 = []
+    step n = step (n-1) ++ [Move (x+n-1) (y-n), Move (x+n) (y-n)]
